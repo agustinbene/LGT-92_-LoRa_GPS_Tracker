@@ -104,6 +104,35 @@
 /*!
  * User application data
  */
+ 
+ 
+ /*  SEPTIEMBRE 2022  *
+     _____ _____ _____                
+    / ____|_   _/ ____|               
+   | |  __  | || |     ___  _ __ ___  
+   | | |_ | | || |    / _ \|  _   _ \ 
+   | |__| |_| || |___| (_) | | | | | |
+    \_____|_____\_____\___/|_| |_| |_|
+ Grupo de Investigación de Comunicaciones                                   
+*/ 
+	extern uint32_t CARGADOR ; //GICom
+ 
+	FP32 gps_speed; //GICom
+	float speed=0; //GICom
+	
+	float varianza=0; 		//GICom
+	float x[30];					//GICom
+	float xx[30];					//GICom
+	float xy[30];					//GICom
+	float xz[30];					//GICom
+	float x_acum = 0;			//GICom
+	float x_prom=0; 			//GICom
+	float var = 0;				//GICom
+ 
+ //
+ 
+ 
+ 
 static uint8_t AppDataBuff[LORAWAN_APP_DATA_BUFF_SIZE];
 uint8_t switch_status=0,normal_status=0;
 bool is_check_exit=0;
@@ -394,7 +423,7 @@ void CalibrateToZero(void);
   * @param  None
   * @retval None
   */
-int main( void )
+int main( void )  //"Setup"
 {
   /* STM32 HAL library initialization*/
   HAL_Init( );
@@ -433,8 +462,15 @@ int main( void )
   
   /* Configure the Lora Stack*/
   LORA_Init( &LoRaMainCallbacks, &LoRaParamInit);
+	
+	
+	PPRINTF("Cargador: %d\n\r",GIComChargerSensor()); //GICom
+	
+	gicom_config();//GICom
+	
+	
   
-  while( 1 )
+  while( 1 )//"loop"
   {
 		/* Handle UART commands */
     CMD_Process();
@@ -471,14 +507,14 @@ int main( void )
 						
 		lora_send();
 
-		if((motion_flags==1)&&(mpuint_flags==1))
-		{
+		if(((motion_flags==1)&&(mpuint_flags==1))|| ((motion_flags==1)&&(speed>1))){
 			motion_flags=0;			
 			start_time=HW_RTC_GetTimerValue();			
 			APP_TX_DUTYCYCLE=Server_TX_DUTYCYCLE;			
 			TimerInit( &TxTimer, OnTxTimerEvent );
 			gps.latitude = 0;
 			gps.longitude = 0;
+			gps.speed=0;//GIcom
 			lora_state_GPS_Send();      			
 		  lora_send();
 			TimerSetValue( &TxTimer,  APP_TX_DUTYCYCLE);
@@ -590,6 +626,7 @@ static void printf_uplink( void )
 		 PPRINTF("[%lu]", ts); 	
      PPRINTF("%s: %.6f\n\r",(gps.lgtEW == 'E')?"East":"West",gps_longitude);			 
 	 }
+	 speed=gps_speed; //GICom
 	 TimerTime_t ts2 = TimerGetCurrentTime(); 
 	 PPRINTF("[%lu]", ts2);  
 	 if(pdop_fixed!=0.0)
@@ -602,6 +639,7 @@ static void printf_uplink( void )
 	 }	
 	 PPRINTF("[%lu]", ts2); 
 	 PPRINTF("Satellite:%2d.%2d\n\r",gps.usedsatnum,gps.allsatnum);
+	 PPRINTF("Velocidad:%.2f\n\r",speed); //GIcom
 //	 PPRINTF("Fix_Time:%d \n\r",End_times); 
 //	 PPRINTF("data_success\n\r");	 
 	 pdop_fixed=0.0;
@@ -610,6 +648,7 @@ static void printf_uplink( void )
    gps.longitude = 0;		
    gps_latitude = 0;
    gps_longitude = 0;	
+	 gps_speed=0; //GIcom
 	 
 	}	
 	else
@@ -702,7 +741,30 @@ static void Send( void )
 			Pitch_sum+=pitch;
 			Roll_sum+=roll;
 			Yaw_sum+=yaw;
+			
+			xx[H]=ax;//GIcom	
+			xy[H]=ay;//GIcom	
+			xz[H]=az;//GIcom			
+			
 		}
+		
+			x_acum=0;//GIcom
+			var=0;//GIcom
+			
+			for (int i = 0; i < 30; i++){													//GIcom
+				x[i] = invSqrt(xx[i]*xx[i]+xy[i]*xy[i]+xz[i]*xz[i]);//GIcom
+				x_acum = x_acum + x[i]; 														//GIcom		
+			}	
+					
+			 x_prom = x_acum / 30;																//GIcom	
+			
+			for (int i = 0; i <= 29; i++){												//GIcom
+				var = var + (x[i] - x_prom) * (x[i] - x_prom);			//GIcom
+			}
+			var=var*100;		
+		
+		
+		
 
 	Roll_new=Roll_sum/30.0;
 	Pitch_new=Pitch_sum/30.0;
@@ -754,6 +816,7 @@ static void Send( void )
 //	PPRINTF("\n\r[%lu]", ts); 	
 	PPRINTF("Roll=%0.2f  ",((int)(Roll1*100))/100.0);
 	PPRINTF("Pitch=%0.2f  ",((int)(Pitch1*100))/100.0);
+	PPRINTF("\n\rVarianza=%d  ",var);//GICom
 //	PPRINTF("Yaw=%0.2f\r\n",((int)(Yaw1*100))/100.0);
 	if(gps.altitude < 0)
 	{
@@ -766,7 +829,9 @@ static void Send( void )
 	AT_PRINTF("Altitude:%.1f%c\r\n ",gps.altitude,gps.altitudeunit);
 	printf_uplink();
 	
-  FLAG = (int)(MD<<6 | LON<<5 | Firmware )& 0xFF;
+  //FLAG = (int)(MD<<6 | LON<<5 | Firmware )& 0xFF;
+	FLAG = (int)(GIComChargerSensor()<<6 | LON<<5 | Firmware )& 0xFF;//GICom - Reemplazo la bandera de deteccion de mov por el sensor del cargador
+	PRINTF("\n\rBAT=%f  ",sensor_data.bat_mv);//GIcom
 //	PRINTF("\n\rFLAG=%d  ",FLAG);
 	AppData.Port = LORAWAN_APP_PORT;
 	if(lora_getGPSState() == STATE_GPS_OFF)
@@ -778,7 +843,8 @@ static void Send( void )
 				AppData.Buff[i++] = 0x00;	
 				AppData.Buff[i++] = 0x00;
 				AppData.Buff[i++] = 0x00;	
-				AppData.Buff[i++] = 0x00;				
+				AppData.Buff[i++] = 0x00;
+				AppData.Buff[i++] = 0x00; 	//GICom 	8				
 			}
 		 else if(lora_getGPSState() == STATE_GPS_NO)
 		 {
@@ -789,57 +855,60 @@ static void Send( void )
 				AppData.Buff[i++] = 0xFF;	
 				AppData.Buff[i++] = 0xFF;	
 				AppData.Buff[i++] = 0xFF;	
-				AppData.Buff[i++] = 0xFF;				 
+				AppData.Buff[i++] = 0xFF;
+				AppData.Buff[i++] = 0xFF; 	//GICom 	8
 		 }
 		else
 		{
-			  AppData.Buff[i++] =(int)latitude>>24& 0xFF;
-			  AppData.Buff[i++] =(int)latitude>>16& 0xFF;
-			  AppData.Buff[i++] =(int)latitude>>8& 0xFF;
-			  AppData.Buff[i++] =(int)latitude& 0xFF;
-				AppData.Buff[i++] =(int)longitude>>24& 0xFF;
-			  AppData.Buff[i++] =(int)longitude>>16& 0xFF;
-			  AppData.Buff[i++] =(int)longitude>>8& 0xFF;
-			  AppData.Buff[i++] =(int)longitude& 0xFF;		 
+			  AppData.Buff[i++] =(int)latitude>>24& 0xFF;		//0
+			  AppData.Buff[i++] =(int)latitude>>16& 0xFF;		//1
+			  AppData.Buff[i++] =(int)latitude>>8& 0xFF;		//2
+			  AppData.Buff[i++] =(int)latitude& 0xFF;				//3
+				AppData.Buff[i++] =(int)longitude>>24& 0xFF;	//4
+			  AppData.Buff[i++] =(int)longitude>>16& 0xFF;	//5
+			  AppData.Buff[i++] =(int)longitude>>8& 0xFF;		//6
+			  AppData.Buff[i++] =(int)longitude& 0xFF;			//7	
+				AppData.Buff[i++] =(int)(speed); 			//GICom 	8
+
 		}
    if(set_sgm == 1)
 		{
 
 			if(ALARM == 1)
 			 {
-					AppData.Buff[i++] =(int)(sensor_data.bat_mv)>>8 |0x40;      //oil float
-					AppData.Buff[i++] =(int)sensor_data.bat_mv;					
+					AppData.Buff[i++] =(int)(sensor_data.bat_mv)>>8 |0x40;      //oil float 9	
+					AppData.Buff[i++] =(int)sensor_data.bat_mv;									//10
 				 
 			 }
 			else
 			 {
 					AppData.Buff[i++] =(int)(sensor_data.bat_mv)>>8;       //oil float
-					AppData.Buff[i++] =(int)sensor_data.bat_mv;
+					AppData.Buff[i++] =(int)sensor_data.bat_mv;						//10
 			 }
-			 AppData.Buff[i++] =(int)FLAG;
+			 AppData.Buff[i++] =(int)FLAG; //11
 		}
 	else if(set_sgm == 0)
 		{
 		  if(ALARM == 1)
 			 {
 				 AppData.Buff[i++] =(int)(sensor_data.bat_mv)>>8 |0x40;      //oil float
-				 AppData.Buff[i++] =(int)sensor_data.bat_mv;
+				 AppData.Buff[i++] =(int)sensor_data.bat_mv;								//10
 			 }
 			 else
 			 {
 				AppData.Buff[i++] =(int)(sensor_data.bat_mv)>>8;       //oil float
-				AppData.Buff[i++] =(int)sensor_data.bat_mv;
+				AppData.Buff[i++] =(int)sensor_data.bat_mv;						//10
 			 }
-			 AppData.Buff[i++] =(int)FLAG;
-			 AppData.Buff[i++] =(int)(Roll1*100)>>8;       //Roll
-			 AppData.Buff[i++] =(int)(Roll1*100);
-			 AppData.Buff[i++] =(int)(Pitch1*100)>>8;       //Pitch
-			 AppData.Buff[i++] =(int)(Pitch1*100);
-			 AppData.Buff[i++] =(int)(gps.HDOP*100);       //HDOP
-			 AppData.Buff[i++] =(int)(gps.altitude*100)>>8; //Altitude
-       AppData.Buff[i++] =(int)(gps.altitude*100);			 
-		}		
-
+			 AppData.Buff[i++] =(int)FLAG; 									//11
+			 AppData.Buff[i++] =(int)(var*100)>>8;       		//Roll 12
+			 AppData.Buff[i++] =(int)(var*100);							//13
+			 AppData.Buff[i++] =(int)(gps.HDOP*100);       	//HDOP 14
+			 AppData.Buff[i++] =(int)(gps.altitude*100)>>8; //Altitude 15
+			 AppData.Buff[i++] =(int)(gps.altitude*100);		//16			 
+			 
+		}
+		
+		
 	 gps.flag = 1;
 	 gps_setflags=0;		
    press_button_times	=0;	
@@ -1227,6 +1296,7 @@ static void OnTxTimerEvent( void )
 	gps.flag = 1;
   gps.latitude = 0;
   gps.longitude = 0;	
+	gps.speed = 0; //GICom
 	
 	if(lora_getState() != STATE_GPS_SEND )
 	 { 	
@@ -1251,14 +1321,15 @@ static void LoraStartTx(TxEventType_t EventType)
 		lora_state_GPS_Send();
 		gps.flag = 1;
     gps.latitude = 0;
-    gps.longitude = 0;			
+    gps.longitude = 0;
+		gps.speed = 0; //GICom		
   }
 }
 
 static void timing(void)
 {
 	uint32_t temp_time=0;
-	if(MD!=0)
+	if(MD!=0)  //GICom info - (0:Disable,1:Move,2:Collide,3:Customized)
 	{
 		if((motion_flags==0)&&(ALARM ==0))	
 		{
@@ -1423,6 +1494,7 @@ void lora_send(void)
 					{	
 						gps_latitude = gps.latitude;
 						gps_longitude = gps.longitude;	
+						gps_speed = gps.speed;//GICom
 					  pdop_fixed=pdop_gps;	 						
 						SendData = 1;
 						if(Positioning_time!=0)
@@ -1439,6 +1511,7 @@ void lora_send(void)
 						{
 							gps_latitude = gps.latitude;
 							gps_longitude = gps.longitude;
+							gps_speed = gps.speed;//GICom
 							pdop_comp=pdop_gps;						
 						}							
 					}

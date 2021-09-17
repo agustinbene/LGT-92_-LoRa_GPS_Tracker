@@ -103,6 +103,28 @@ void  BSP_sensor_Init( void  )
 	
 }
 
+int  GIComChargerSensor( void  ) //GICom
+{
+	  //GICom declaracion del pin 3 puerto A como entrada para detectar el cargador 
+		GPIO_InitTypeDef GPIO_InitStructure;  											   
+
+    GPIO_InitStructure.Pin =   GPIO_PIN_3 ;
+    GPIO_InitStructure.Mode  = GPIO_MODE_INPUT;
+    GPIO_InitStructure.Pull  = GPIO_NOPULL;//GPIO_PULLDOWN
+    GPIO_InitStructure.Speed = GPIO_SPEED_HIGH;//GPIO_SPEED_FREQ_VERY_HIGH
+    HAL_GPIO_Init(GPIOA, &GPIO_InitStructure);   
+
+		
+		int enchufado=HAL_GPIO_ReadPin(GPIOA,GPIO_PIN_3);
+		if(HAL_GPIO_ReadPin(GPIOA,GPIO_PIN_3)){
+		//PPRINTF("CONECTADO: \n\r");
+			return 1;
+		}else{
+			//PPRINTF("DESCONECTADO: \n\r");
+			return 0;
+		}	
+}
+
 void  BSP_sensor_DeInit( void  )
 {
 	  GPIO_InitTypeDef GPIO_InitStructure; 

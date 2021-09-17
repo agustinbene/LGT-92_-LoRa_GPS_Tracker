@@ -109,6 +109,8 @@ void  GPS_Init(void);
 
 void powerLED(void);
 
+int GIComChargerSensor(void); //GIComw
+
 /**
  * @brief  sensor  read. 
  *

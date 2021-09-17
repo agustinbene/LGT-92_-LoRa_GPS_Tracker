@@ -616,6 +616,34 @@ void fdr_config(void)
 	Read_Config();	
 }
 
+void gicom_config(void) //GIcom
+{
+	lora_config.duty_cycle = LORA_DISABLE;
+	lora_config.application_port=2;
+	
+	#if defined( REGION_AS923 )	|| defined( REGION_AU915 )
+		  dwelltime=1;
+	#endif
+				
+	Server_TX_DUTYCYCLE	=10000; //15seg - AT+TDC=
+	Alarm_TX_DUTYCYCLE	=10000;
+	Keep_TX_DUTYCYCLE		=360000; //6min - AT+KAT=
+	Positioning_time = 0;
+	pdop_value=10.0;
+	gps.flag = 1;	 
+	LON =	1;
+	MD = 0;
+	set_sgm = 0;	
+	s_timer = 1;
+	REJOIN_TX_DUTYCYCLE=10;//min	
+
+	fdr_flags=1;	
+	Store_Config();
+	Read_Config();	
+}
+
+
+
 void region_printf(void)
 {
 #if defined( REGION_AS923 )

@@ -145,6 +145,8 @@ void HW_Init( void )
 		    
     BSP_sensor_Init( );
 		
+		GIComChargerSensor(); //GIcom
+		
 		BSP_powerLED_Init();		
 
     McuInitialized = true;
